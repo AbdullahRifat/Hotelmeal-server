@@ -93,7 +93,7 @@ async function run() {
 
 
     //
-    app.get("/users", verifyToken,verifyAdmin, async (req, res) => {
+    app.get("/users", async (req, res) => {
    
       const result = await userCollection.find().toArray()
       res.send(result);
@@ -143,6 +143,23 @@ async function run() {
 
       res.send(result)
 
+
+    })
+
+    app.put('/users/:id',async(req, res)=>{
+       const id = req.params.id;
+      const subscription = req.body.subscription;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = {
+        $set: {
+          subscription:subscription
+        }
+      }
+      const result = await userCollection.updateOne(filter, updatedDoc,options);
+
+
+      res.send(result)
 
     })
     //users
@@ -223,18 +240,84 @@ async function run() {
           category: item.category,
           price: item.price,
           recipe: item.recipe,
-          image: item.image
+          image: item.image,
+          
         }
       }
 
       const result = await menuCollection.updateOne(filter, updatedDoc)
       res.send(result);
     })
-
+    //review related api
     app.get('/reviews', async (req, res) => {
       const result = await reviewCollection.find().toArray();
       res.send(result);
     })
+    //geting reviews
+    app.get('/reviews/:id', async (req, res) => {
+      const menuId = req.params.id;
+    
+      try {
+        const reviews = await reviewCollection.find({ menuId }).toArray();
+        res.json(reviews);
+      } catch (error) {
+        res.status(500).json({ error: 'Unable to fetch reviews' });
+      }
+    });
+
+    //managinng likes
+    // app.put('/menu/likes/:id', async (req, res) => {
+    //   const id = req.params.id;
+    //   // Assuming req.body contains the updated likes count
+    //   const { likes } = req.body;
+    
+    //   const filter = { _id: new ObjectId(id) }
+    //   const update = { $set: { likes: likes } }
+    
+    //   const result = await menuCollection.updateOne(filter, update);
+    //   res.send(result);
+    // });
+
+
+    app.put('/menu/likes/:id', async (req, res) => {
+      const id = req.params.id;
+      const userEmail = req.body.email; // Assuming you have the user email available in the request
+    
+      const menu = await menuCollection.findOne({ _id: new ObjectId(id) });
+    
+      if (!menu) {
+        return res.status(404).send('Menu not found');
+      }
+    
+      // Check if the user has already liked this menu item
+      const hasLiked = menu.likesBy && menu.likesBy.includes(userEmail);
+
+      if (hasLiked) {
+        return res.status(400).send('User has already liked this menu item');
+      }
+    
+      const updatedLikes = menu.likes + 1;
+      const updatedLikesBy = menu.likesBy ? [...menu.likesBy, userEmail] : [userEmail];
+
+    
+      const result = await menuCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { likes: updatedLikes, likesBy: updatedLikesBy } }
+      );
+    
+      res.send(result);
+    });
+    
+    
+    //managing reviews
+    app.post('/reviews', async (req, res) => {
+      const reviews = req.body;
+      
+      console.log('reviews',reviews)
+      const result = await reviewCollection.insertOne(reviews);
+      res.send(result);
+    });
+    
 
     // carts collection
     app.get('/carts', async (req, res) => {
@@ -246,6 +329,7 @@ async function run() {
 
     app.post('/carts', async (req, res) => {
       const cartItem = req.body;
+      console.log(cartItem)
       const result = await cartCollection.insertOne(cartItem);
       res.send(result);
     });
