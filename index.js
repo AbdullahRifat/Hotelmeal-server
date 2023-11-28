@@ -46,9 +46,10 @@ async function run() {
 
     //middlewires
     const verifyToken = (req, res, next) => {
-     
+      
       if (!req.headers.authorization) {
         return res.status(401).send({
+          
           message: "forbidden acess"
         })
       }
@@ -69,7 +70,7 @@ async function run() {
       const query = {email: email};
       const user = await userCollection.findOne(query)
       const isAdmin = user?.role==='admin'
-
+      console.log('Admin',isAdmin)
       if(!isAdmin){
         return res.status(401).send({ message: 'forbidden acess'})
       }
@@ -215,12 +216,15 @@ async function run() {
      res.send(result);
     })
 
-    app.delete('/menu:id',verifyToken,verifyAdmin, async (req,res) => {
+    app.delete('/menu/delete/:id',verifyToken,verifyAdmin, async (req,res) => {
+     
         const id = req.params.id;
+        console.log(id)
         const query = {_id: new ObjectId(id)} 
         const result = await menuCollection.deleteOne(query)
         res.send(result);
     })
+
     app.get('/menu/:id', async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) }
@@ -308,6 +312,31 @@ async function run() {
       res.send(result);
     });
     
+
+
+    app.put('/menu/upcoming/:id', async (req, res) => {
+      const mealId = req.params.id; // Retrieve the meal ID from the request params
+      const { upcoming } = req.body;
+      console.log(upcoming)
+       // Assuming you're sending 'mealStatus' in the request body
+      const menu = await menuCollection.findOne({ _id: new ObjectId(mealId) });
+      console.log(menu)
+      if (!menu) {
+        return res.status(404).send('Menu not found');
+      }
+    
+      // Update the meal in the cartCollection by ID
+      const result = await menuCollection.updateOne(
+        { _id: new ObjectId(mealId) }, // Assuming mealId is the correct MongoDB ObjectId
+        { $set: { upcoming: upcoming } } // Update the mealStatus field
+      );
+    
+      res.send({
+        result: result,
+        modifiedCount: result.modifiedCount,
+      }); // Include the modifiedCount property in the response
+    });
+    
     
     //managing reviews
     app.post('/reviews', async (req, res) => {
@@ -317,9 +346,55 @@ async function run() {
       const result = await reviewCollection.insertOne(reviews);
       res.send(result);
     });
+
+    app.put('/menu/reviews/:id',async(req,res)=>{
+
+      const id = req.params.id;
+ 
+
+  const menuDocument = await menuCollection.findOne({ _id: new ObjectId(id) });
+  
+  if (!menuDocument) {
+    res.status(404).send('Menu not found');
+    return;
+  }
+  const mupdatedReview = menuDocument.reviews+1
+  const result = await menuCollection.updateOne(
+    { _id: new ObjectId(id) },
+    { $set: { reviews: mupdatedReview} }
+  );
     
+   res.send(result);
+    })
 
     // carts collection
+    //get all carts or 
+    app.get('/carts/requestedMeals', async (req, res) => {
+     
+      const result = await cartCollection.find().toArray();
+      res.send(result);
+    });
+
+    //serving
+    app.put('/carts/requestedMeals/serve/:id', async (req, res) => {
+      const mealId = req.params.id; // Retrieve the meal ID from the request params
+      const { mealStatus } = req.body; // Assuming you're sending 'mealStatus' in the request body
+  
+      // Update the meal in the cartCollection by ID
+      const result = await cartCollection.updateOne(
+          { _id: new ObjectId(mealId) }, // Assuming mealId is the correct MongoDB ObjectId
+          { $set: { mealStatus: mealStatus } } // Update the mealStatus field
+      );
+  
+      if (result.modifiedCount === 0) {
+          return res.status(404).json({ message: 'Meal not found or not modified' });
+      }
+  
+      res.send(result);
+  });
+  
+
+
     app.get('/carts', async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
